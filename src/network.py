@@ -11,24 +11,9 @@ import random
 import numpy as np
 
 
-def sigmoid(z):
-    """
-    The sigmoid function.
-    """
-
-    return 1.0 / (1.0 + np.exp(-z))
-
-def sigmoid_prime(z):
-    """
-    Derivative of the sigmoid function.
-    """
-
-    return sigmoid(z) * (1 - sigmoid(z))
-
-
 class Network:
 
-    def __init__(self, sizes):
+    def __init__(self, sizes, activation, activation_prime, cost_derivative):
         """
         The list `sizes` contains the number of neurons in the respective layers
         of the network. For example, if the list was [2, 3, 1] then it would be
@@ -38,12 +23,19 @@ class Network:
         mean 0 and variance 1. Note that the first layer is assumed to be an input
         layer, and by convention we won't set any biases for those neurons, since
         biases are only ever used in computing the outputs from later layers.
+
+        `activation` a function used as activation function for the neurons.
+        `activation_prime` is its derivative. `cost_derivative` is a function that
+        receives the output of the network and the expected output, and returns
+        `nabla_{a^L} C_x`, that is, the vector of partial derivatives
+        `\partial C_x / \partial a^L_j`, where `C_x` is the cost function for a
+        single training sample, and `a^L_j` are the
+        output layer activations.
         """
 
         self.rng = np.random.default_rng()
 
         self.num_layers = len(sizes)
-        self.sizes = sizes
         self.weights = [
             self.rng.standard_normal((y, x))
                 for x, y in zip(sizes[0:], sizes[1:])
@@ -52,6 +44,10 @@ class Network:
             self.rng.standard_normal((y, 1))
                 for y in sizes[1:]
         ]
+
+        self.activation = activation
+        self.activation_prime = activation_prime
+        self.cost_derivative = cost_derivative
 
     def SGD(self, training_data, epochs, mini_batch_size, eta, test_data=None):
         """
@@ -89,51 +85,84 @@ class Network:
         tuples `(x, y)` and `eta` is the learning rate.
         """
 
-        nabla_C_w = [
+        nabla_w_C = [
             np.zeros(w.shape)
                 for w in self.weights
         ]
-        nabla_C_b = [
+        nabla_b_C = [
             np.zeros(b.shape)
                 for b in self.biases
         ]
 
         for x, y in mini_batch:
-            delta_nabla_C_w, delta_nabla_C_b = self.backprop(x, y)
-            nabla_C_w = [
-                nCw + dnCw
-                    for nCw, dnCw in zip(nabla_C_w, delta_nabla_C_w)
+            nabla_w_C_x, nabla_b_C_x = self.backprop(x, y)
+            nabla_w_C = [
+                nwC + nwCx
+                    for nwC, nwCx in zip(nabla_w_C, nabla_w_C_x)
             ]
-            nabla_C_b = [
-                nb + dnb
-                    for nb, dnb in zip(nabla_C_b, delta_nabla_C_b)
+            nabla_b_C = [
+                nbC + nbCx
+                    for nbC, nbCx in zip(nabla_b_C, nabla_b_C_x)
             ]
 
         self.weights = [
-            w - (eta / len(mini_batch)) * nCw
-                for w, nCw in zip(self.weights, nabla_C_w)
+            w - (eta / len(mini_batch)) * nwC
+                for w, nwC in zip(self.weights, nabla_w_C)
         ]
         self.biases = [
-            b - (eta / len(mini_batch)) * nCb
-                for b, nCb in zip(self.biases, nabla_C_b)
+            b - (eta / len(mini_batch)) * nbC
+                for b, nbC in zip(self.biases, nabla_b_C)
         ]
 
     def backprop(self, x, y):
         """
-        Return a tuple `(nabla_C_w, nabla_C_b)` representing the gradient of the
-        cost function C_x. `nabla_C_w` and `nabla_C_b` are layer-by-layer lists
+        Return a tuple `(nabla_{w} C_x, nabla_{b} C_x)` representing the gradient of the
+        cost function C_x. `nabla_{w} C_x` and `nabla_{b} C_x` are layer-by-layer lists
         of numpy arrays, similar to `self.biases` and `self.weights`.
         """
 
-        pass
+        nabla_w_C_x = [
+            np.zeros(w.shape)
+                for w in self.weights
+        ]
+        nabla_b_C_x = [
+            np.zeros(b.shape)
+                for b in self.biases
+        ]
 
-    def cost_derivative(self, output_activations, y):
-        """
-        Return the vector of partial derivatives \partial C_x / \partial a for
-        the output activations.
-        """
+        # feedforward
+        a = x
 
-        pass
+        z_list = []  # list to store all z vectors, layer by layer
+        a_list = [a] # list to store all a vectors, layer by layer
+
+        for w, b in zip(self.weights, self.biases):
+            z = w @ a + b
+            a = self.activation(z)
+
+            z_list.append(z)
+            a_list.append(a)
+
+        # backward pass
+        delta = \
+            self.cost_derivative(a_list[-1], y) * self.activation_prime(z_list[-1])
+
+        nabla_w_C_x[-1] = delta @ a_list[-2].transpose()
+        nabla_b_C_x[-1] = delta
+
+        # Note that the variable `l` in the loop below is used a little differently
+        # to the notation in Chapter 2 of the book. Here, `l = 1` means the last
+        # layer of neurons, `l = 2` is the second-last layer, and so on. It's a
+        # renumbering of the scheme in the book, used here to take advantage of
+        # the fact that Python can use negative indices in lists.
+        for l in range(2, self.num_layers):
+            delta = \
+                self.weights[-l+1].transpose() @ delta * self.activation_prime(z_list[-l])
+
+            nabla_w_C_x[-l] = delta @ a_list[-l-1].transpose()
+            nabla_b_C_x[-l] = delta
+
+        return (nabla_w_C_x, nabla_b_C_x)
 
     def evaluate(self, test_data):
         """
@@ -150,12 +179,13 @@ class Network:
             y[x][0] for x, y in test_results
         )
 
-    def feedforward(self, a):
+    def feedforward(self, x):
         """
-        Return the output of the network if `a` is input.
+        Return the output of the network if `x` is input.
         """
 
+        a = x
         for w, b in zip(self.weights, self.biases):
-            a = sigmoid(w @ a + b)
+            a = self.activation(w @ a + b)
 
         return a
