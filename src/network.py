@@ -85,33 +85,22 @@ class Network:
         tuples `(x, y)` and `eta` is the learning rate.
         """
 
-        nabla_w_C = [
-            np.zeros(w.shape)
-                for w in self.weights
-        ]
-        nabla_b_C = [
-            np.zeros(b.shape)
-                for b in self.biases
-        ]
+        x = np.array([
+            x for x, _ in mini_batch
+        ])
+        y = np.array([
+            y for _, y in mini_batch
+        ])
+        nabla_w_C_x, nabla_b_C_x = self.backprop(x, y)
 
-        for x, y in mini_batch:
-            nabla_w_C_x, nabla_b_C_x = self.backprop(x, y)
-            nabla_w_C = [
-                nwC + nwCx
-                    for nwC, nwCx in zip(nabla_w_C, nabla_w_C_x)
-            ]
-            nabla_b_C = [
-                nbC + nbCx
-                    for nbC, nbCx in zip(nabla_b_C, nabla_b_C_x)
-            ]
-
+        m = len(mini_batch)
         self.weights = [
-            w - (eta / len(mini_batch)) * nwC
-                for w, nwC in zip(self.weights, nabla_w_C)
+            w - (eta / m) * np.sum(nwCx, axis=0)
+                for w, nwCx in zip(self.weights, nabla_w_C_x)
         ]
         self.biases = [
-            b - (eta / len(mini_batch)) * nbC
-                for b, nbC in zip(self.biases, nabla_b_C)
+            b - (eta / m) * np.sum(nbCx, axis=0)
+                for b, nbCx in zip(self.biases, nabla_b_C_x)
         ]
 
     def backprop(self, x, y):
@@ -147,7 +136,7 @@ class Network:
         delta = \
             self.cost_derivative(a_list[-1], y) * self.activation_prime(z_list[-1])
 
-        nabla_w_C_x[-1] = delta @ a_list[-2].transpose()
+        nabla_w_C_x[-1] = delta @ a_list[-2].swapaxes(-2, -1)
         nabla_b_C_x[-1] = delta
 
         # Note that the variable `l` in the loop below is used a little differently
@@ -159,7 +148,7 @@ class Network:
             delta = \
                 self.weights[-l+1].transpose() @ delta * self.activation_prime(z_list[-l])
 
-            nabla_w_C_x[-l] = delta @ a_list[-l-1].transpose()
+            nabla_w_C_x[-l] = delta @ a_list[-l-1].swapaxes(-2, -1)
             nabla_b_C_x[-l] = delta
 
         return (nabla_w_C_x, nabla_b_C_x)
