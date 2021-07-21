@@ -2,10 +2,11 @@
 network
 ~~~~~~~
 
-A module to implement the stochastic gradient descent learning algorithm for a
-feedforward neural network. Gradients are calculated using backpropagation.
-The activation function of each neuron is the sigmoid, and the cost function is
-the cross-entropy. Also, L2 regularization is applied to reduce overfitting.
+A module to implement the momentum-based stochastic gradient descent learning
+algorithm for a feedforward neural network. Gradients are calculated using
+backpropagation. The activation function of each neuron is the sigmoid, and the
+cost function is the cross-entropy. Also, L2 regularization is applied to reduce
+overfitting.
 """
 
 
@@ -89,6 +90,9 @@ class Network:
         to the same neuron. Initialize the biases using a Gaussian distribution
         with mean 0 and standard deviation 1.
 
+        Also initialize both weights and biases momentums to zero, used in momentum-based
+        gradient descent.
+
         Note that the first layer is assumed to be an input layer, and by convention
         we won't set any biases for those neurons, since biases are only ever used
         in computing the outputs from later layers.
@@ -103,12 +107,22 @@ class Network:
                 for y in self.sizes[1:]
         ]
 
+        self.weights_momentums = [
+            np.zeros(w.shape)
+                for w in self.weights
+        ]
+        self.biases_momentums = [
+            np.zeros(b.shape)
+                for b in self.biases
+        ]
+
     def SGD(
         self,
         training_data,
         epochs,
         mini_batch_size,
         eta,
+        mu,
         lmbda,
         validation_data=None,
         monitor_training_accuracy=False,
@@ -137,6 +151,7 @@ class Network:
                 self.update_mini_batch(
                     mini_batch,
                     eta,
+                    mu,
                     lmbda,
                     n
                 )
@@ -155,12 +170,13 @@ class Network:
 
             print()
 
-    def update_mini_batch(self, mini_batch, eta, lmbda, n):
+    def update_mini_batch(self, mini_batch, eta, mu, lmbda, n):
         """
         Update the network's weights and biases by appling gradient descent
         using backpropagation to a single mini-batch. `mini_batch` is a list of
-        tuples `(x, y)`, `eta` is the learning rate, `lmbda` is the regularization
-        parameter, and `n` is the total size of the training dataset.
+        tuples `(x, y)`, `eta` is the learning rate, `mu` is the momentum coefficient,
+        `lmbda` is the regularization parameter, and `n` is the total size of the
+        training dataset.
         """
 
         x = np.array([
@@ -172,13 +188,22 @@ class Network:
         nabla_w_C_x, nabla_b_C_x = self.backprop(x, y)
 
         m = len(mini_batch)
+        self.weights_momentums = [
+            mu * vw - np.sum(nwCx, axis=0) / m
+                for vw, nwCx in zip(self.weights_momentums, nabla_w_C_x)
+        ]
+        self.biases_momentums = [
+            mu * vb - np.sum(nbCx, axis=0) / m
+                for vb, nbCx in zip(self.biases_momentums, nabla_b_C_x)
+        ]
+
         self.weights = [
-            (1.0 - eta * lmbda / n) * w - (eta / m) * np.sum(nwCx, axis=0)
-                for w, nwCx in zip(self.weights, nabla_w_C_x)
+            (1.0 - eta * lmbda / n) * w + eta * vw
+                for w, vw in zip(self.weights, self.weights_momentums)
         ]
         self.biases = [
-            b - (eta / m) * np.sum(nbCx, axis=0)
-                for b, nbCx in zip(self.biases, nabla_b_C_x)
+            b + eta * vb
+                for b, vb in zip(self.biases, self.biases_momentums)
         ]
 
     def backprop(self, x, y):
