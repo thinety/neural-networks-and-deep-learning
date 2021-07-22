@@ -125,6 +125,8 @@ class Network:
         mu,
         lmbda,
         validation_data=None,
+        monitor_training_cost=False,
+        monitor_validation_cost=False,
         monitor_training_accuracy=False,
         monitor_validation_accuracy=False,
     ):
@@ -158,15 +160,21 @@ class Network:
 
             print(f'Epoch {j} training complete')
 
+            if monitor_training_cost:
+                cost = self.total_cost(training_data, lmbda)
+                print(f'(training data) Cost: {cost}')
             if monitor_training_accuracy:
                 accuracy = self.accuracy(training_data)
-                print(f'(training data) Accuracy: {accuracy} / {n}')
+                print(f'(training data) Accuracy: {accuracy/n}')
 
             if validation_data is not None:
                 n_validation = len(validation_data)
+                if monitor_validation_cost:
+                    cost = self.total_cost(validation_data, lmbda)
+                    print(f'(validation data) Cost: {cost}')
                 if monitor_validation_accuracy:
                     accuracy = self.accuracy(validation_data)
-                    print(f'(validation data) Accuracy: {accuracy} / {n_validation}')
+                    print(f'(validation data) Accuracy: {accuracy/n_validation}')
 
             print()
 
@@ -259,6 +267,27 @@ class Network:
             nabla_b_C_x[-l] = delta
 
         return (nabla_w_C_x, nabla_b_C_x)
+
+    def total_cost(self, data, lmbda):
+        """
+        Return the total cost for the `data` dataset.
+        """
+
+        cost = 0.0
+        n = len(data)
+
+        # default cost
+        for x, y in data:
+            a = self.feedforward(x)
+            cost += self.cost.fn(a, y)
+        cost /= n
+
+        # L2 regularization added cost
+        cost += (lmbda/n) * 0.5 * sum(
+            np.sum(w * w) for w in self.weights
+        )
+
+        return cost
 
     def accuracy(self, data):
         """

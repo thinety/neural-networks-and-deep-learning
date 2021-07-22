@@ -13,6 +13,8 @@ net.SGD(
     eta=0.005,
     mu=0.99,
     lmbda=5.0,
+    monitor_training_cost=True,
+    monitor_validation_cost=True,
     monitor_training_accuracy=True,
     monitor_validation_accuracy=True,
 )
@@ -26,6 +28,8 @@ net.SGD(
     eta=0.001,
     mu=0.99,
     lmbda=5.0,
+    monitor_training_cost=True,
+    monitor_validation_cost=True,
     monitor_training_accuracy=True,
     monitor_validation_accuracy=True,
 )
