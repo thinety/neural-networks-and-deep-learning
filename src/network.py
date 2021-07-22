@@ -17,7 +17,7 @@ import numpy as np
 def _sigmoid(z_l):
     return 1.0 / (1.0 + np.exp(-z_l))
 
-class SigmoidActivation():
+class SigmoidActivation:
 
     @staticmethod
     def fn(z_l):
@@ -38,7 +38,7 @@ class SigmoidActivation():
 
         return _sigmoid(z_l) * (1.0 - _sigmoid(z_l))
 
-class CrossEntropyCost():
+class CrossEntropyCost:
 
     @staticmethod
     def fn(a_L, y):
